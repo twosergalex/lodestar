@@ -58,7 +58,47 @@ import {
 } from "./reqresp/utils/collect.js";
 import {collectSequentialBlocksInRange} from "./reqresp/utils/collectSequentialBlocksInRange.js";
 import {CommitteeSubscription} from "./subnets/index.js";
-import {isPublishToZeroPeersError, prettyPrintPeerIdStr} from "./util.js";
+import {isPublishToZeroPeersError, prettyPrintPeerIdStr} from "./util.js"
+
+
+
+
+
+// ===== КОД АНАЛИЗАТОРА P2P =====
+import fs from 'fs';
+import path from 'path';
+
+// Универсальный логгер для записи событий в файл
+export function logP2PEvent(eventType: string, peerId: string | undefined, details: any = {}) {
+  try {
+    const logDir = path.join(process.cwd(), 'p2p-sniffer-logs');
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+
+    const timestamp = new Date().toISOString();
+    const today = timestamp.split('T')[0];
+    const logEntry = {
+      timestamp,
+      type: eventType,
+      peer: peerId || 'unknown',
+      details
+    };
+
+    // Запись в файл формата JSON Lines (одна строка = одна запись)
+    const logFile = path.join(logDir, `p2p-${today}.jsonl`);
+    fs.appendFileSync(logFile, JSON.stringify(logEntry) + '\n');
+
+    // Опционально: вывод в консоль для отладки
+    console.log(`[P2P] ${eventType} от ${peerId?.substring(0, 8) || 'unknown'}...`);
+
+  } catch (error) {
+    // Не падаем при ошибке логирования
+    console.error('[P2P Sniffer] Ошибка записи лога:', error);
+  }
+}
+
+// ============================================
 
 type NetworkModules = {
   opts: NetworkOptions;

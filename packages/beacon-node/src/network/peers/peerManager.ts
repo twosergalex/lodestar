@@ -33,6 +33,10 @@ import {
   renderIrrelevantPeerType,
 } from "./utils/index.js";
 
+
+import { logP2PEvent } from '../network.js';
+
+
 /** heartbeat performs regular updates such as updating reputations and performing discovery requests */
 const HEARTBEAT_INTERVAL_MS = 30 * 1000;
 /** The time in seconds between PING events. We do not send a ping if the other peer has PING'd us */
@@ -161,6 +165,12 @@ export class PeerManager {
 
   // A single map of connected peers with all necessary data to handle PINGs, STATUS, and metrics
   private connectedPeers: Map<PeerIdStr, PeerData>;
+
+
+  // ▼▼▼ ВСТАВЬТЕ ЭТО ПРЯМО ЗДЕСЬ ▼▼▼
+  // Карта для отслеживания времени отправки PING (peerId -> timestamp)
+  private pendingPings = new Map<string, number>();
+  // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
 
   private opts: PeerManagerOpts;
   private intervals: NodeJS.Timeout[] = [];
@@ -316,6 +326,17 @@ export class PeerManager {
    * Handle a PING request + response (rpc handler responds with PONG automatically)
    */
   private onPing(peer: PeerId, seqNumber: phase0.Ping): void {
+
+
+     // ▼▼▼ ДОБАВЬТЕ ЗДЕСЬ ▼▼▼
+  logP2PEvent('PEER_PING_RECEIVED', peer.toString(), {
+    seqNumber: seqNumber.toString(),
+    direction: 'inbound'
+  });
+  // ▲▲▲ КОНЕЦ ДОБАВЛЕНИЯ ▲▲▲
+
+
+
     // if the sequence number is unknown update the peer's metadata
     const metadata = this.connectedPeers.get(peer.toString())?.metadata;
     if (!metadata || metadata.seqNumber < seqNumber) {
@@ -335,6 +356,16 @@ export class PeerManager {
       peerData: peerData !== undefined,
       custodyGroupCount: (metadata as Partial<fulu.Metadata>)?.custodyGroupCount,
     });
+
+
+    // ▼▼▼ ВСТАВЬТЕ ЭТОТ КОД ПРЯМО ЗДЕСЬ ▼▼▼
+    logP2PEvent('PEER_METADATA', peer.toString(), {
+        seqNumber: metadata.seqNumber.toString(),
+        attnetsCount: metadata.attnets?.getTrueBitIndexes().length || 0
+    });
+    // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+
+
     if (peerData) {
       const oldMetadata = peerData.metadata;
       const custodyGroupCount =
@@ -374,6 +405,18 @@ export class PeerManager {
    */
   private onGoodbye(peer: PeerId, goodbye: phase0.Goodbye): void {
     const reason = GOODBYE_KNOWN_CODES[goodbye.toString()] || "";
+
+
+     // ▼▼▼ ДОБАВЬТЕ ЗДЕСЬ ▼▼▼
+  logP2PEvent('PEER_GOODBYE_RECEIVED', peer.toString(), {
+    reasonCode: goodbye.toString(),
+    reasonText: reason,
+    direction: 'inbound'
+  });
+  // ▲▲▲ КОНЕЦ ДОБАВЛЕНИЯ ▲▲▲
+
+
+
     this.logger.verbose("Received goodbye request", {peer: prettyPrintPeerId(peer), goodbye, reason});
     this.metrics?.peerGoodbyeReceived.inc({reason});
 
@@ -395,6 +438,18 @@ export class PeerManager {
       peerData.lastStatusUnixTsMs = Date.now();
       peerData.status = status;
     }
+
+
+    // ▼▼▼ ВСТАВЬТЕ ЭТОТ КОД ПРЯМО ЗДЕСЬ ▼▼▼
+    logP2PEvent('PEER_STATUS', peer.toString(), {
+        forkDigest: toHex(status.forkDigest).slice(0, 10),
+        headSlot: status.headSlot.toString(),
+        finalizedEpoch: status.finalizedEpoch.toString(),
+        client: peerData?.agentClient || 'unknown'
+    });
+    // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+
+
 
     const forkName = this.config.getForkName(this.clock.currentSlot);
 
@@ -485,21 +540,68 @@ export class PeerManager {
     }
   }
 
-  private async requestPing(peer: PeerId): Promise<void> {
+    private async requestPing(peer: PeerId): Promise<void> {
     const peerIdStr = peer.toString();
+    const pingSentTime = Date.now();
+    
+    // ▼▼▼ ЭТО НОВОЕ - для измерения времени ▼▼▼
+    this.pendingPings.set(peerIdStr, pingSentTime);
+    // ▲▲▲ КОНЕЦ НОВОГО ▲▲▲
+    
+    // ▼▼▼ ЭТО ВАШЕ СТАРОЕ (оставьте) ▼▼▼
+    logP2PEvent('PEER_PING_SENT', peerIdStr, {
+      direction: 'outbound',
+      timestamp: pingSentTime  // поменяли Date.now() на pingSentTime
+    });
+    // ▲▲▲ КОНЕЦ ВАШЕГО ▲▲▲
+
     try {
       this.onPing(peer, await this.reqResp.sendPing(peer));
+      
+      // ▼▼▼ ЭТО НОВОЕ - вычисляем задержку ▼▼▼
+      const pingReceivedTime = Date.now();
+      const initialTime = this.pendingPings.get(peerIdStr);
+      
+      if (initialTime) {
+        const latencyMs = pingReceivedTime - initialTime;
+        
+        logP2PEvent('PEER_PING_ROUNDTRIP', peerIdStr, {
+          latencyMs: latencyMs,
+          success: true,
+          timestamp: pingReceivedTime
+        });
+        
+        this.pendingPings.delete(peerIdStr);
+      }
+      // ▲▲▲ КОНЕЦ НОВОГО ▲▲▲
 
-      // If peer replies a PING request also update lastReceivedMsg
+      // Если пир ответил, обновляем время последнего сообщения
       const peerData = this.connectedPeers.get(peer.toString());
       if (peerData) peerData.lastReceivedMsgUnixTsMs = Date.now();
+      
     } catch (e) {
+      // ▼▼▼ ЭТО НОВОЕ - логируем таймаут ▼▼▼
+      const initialTime = this.pendingPings.get(peerIdStr);
+      if (initialTime) {
+        const timeoutDuration = Date.now() - initialTime;
+        
+        logP2PEvent('PEER_PING_ROUNDTRIP', peerIdStr, {
+          latencyMs: timeoutDuration,
+          success: false,
+          error: 'timeout',
+          timestamp: Date.now()
+        });
+        
+        this.pendingPings.delete(peerIdStr);
+      }
+      // ▲▲▲ КОНЕЦ НОВОГО ▲▲▲
+      
       this.logger.verbose("invalid requestPing", {peer: prettyPrintPeerIdStr(peerIdStr)}, e as Error);
-      // TODO: Downvote peer here or in the reqResp layer
     }
   }
 
   private async requestStatus(peer: PeerId, localStatus: Status): Promise<void> {
+    
     const peerIdStr = peer.toString();
     try {
       this.onStatus(peer, await this.reqResp.sendStatus(peer, localStatus));
@@ -704,6 +806,21 @@ export class PeerManager {
     const remotePeerStr = remotePeer.toString();
     const remotePeerPrettyStr = prettyPrintPeerId(remotePeer);
     this.logger.verbose("peer connected", {peer: remotePeerPrettyStr, direction, status});
+
+    
+
+    // ▼▼▼ ВСТАВЬТЕ ВАШ КОД ПРЯМО ЗДЕСЬ ▼▼▼
+
+    logP2PEvent('PEER_TCP_CONNECTED', remotePeerStr, {
+        direction: direction === 'inbound' ? 'входящее' : 'исходящее', // ← direction это СТРОКА!
+        address: evt.detail.remoteAddr?.toString() || 'unknown', // ← ?. проверяет на null
+        connectionStatus: status
+    });
+
+    // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+
+
+
     // NOTE: The peerConnect event is not emitted here here, but after asserting peer relevance
     this.metrics?.peerConnectedEvent.inc({direction, status});
 
@@ -753,6 +870,17 @@ export class PeerManager {
           peerData.agentVersion = agentVersion;
           peerData.agentClient = getKnownClientFromAgentVersion(agentVersion);
         }
+
+
+        // ▼▼▼ ВСТАВЬТЕ ЭТОТ КОД ПРЯМО ЗДЕСЬ ▼▼▼
+        logP2PEvent('PEER_IDENTIFY', remotePeerStr, {
+            agentVersion: result.agentVersion || 'unknown',
+            protocols: result.protocols || [],
+            client: peerData?.agentClient || 'unknown'
+        });
+        // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+
+
       })
       .catch((err) => {
         if (evt.detail.status !== "open") {
@@ -772,6 +900,34 @@ export class PeerManager {
   private onLibp2pPeerDisconnect = (evt: CustomEvent<Connection>): void => {
     const {direction, status, remotePeer} = evt.detail;
     const peerIdStr = remotePeer.toString();
+
+
+    // ▼▼▼ ВСТАВЬТЕ ВАШ КОД ПРЯМО ЗДЕСЬ (ПЕРВЫМ) ▼▼▼
+
+    // Определяем причину
+    let disconnectReason = 'unknown';
+    const scoreState = this.peerRpcScores.getScoreState(remotePeer);
+    
+    if (scoreState === ScoreState.Banned) {
+        disconnectReason = 'banned';
+    } else if (scoreState === ScoreState.Disconnected) {
+        disconnectReason = 'low_score';
+    } else if (direction === 'inbound') {
+        disconnectReason = 'peer_initiated';
+    } else {
+        disconnectReason = 'we_initiated';
+    }
+    
+    logP2PEvent('PEER_TCP_DISCONNECTED', peerIdStr, {
+        direction: direction === 'inbound' ? 'входящее' : 'исходящее',
+        address: evt.detail.remoteAddr?.toString() || 'unknown',
+        connectionStatus: status,
+        disconnectReason: disconnectReason,
+        scoreState: ScoreState[scoreState] || 'unknown'
+    });
+
+    // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+
 
     let logMessage = "onLibp2pPeerDisconnect";
     const logContext: Record<string, string | number> = {
@@ -810,6 +966,16 @@ export class PeerManager {
   private async goodbyeAndDisconnect(peer: PeerId, goodbye: GoodByeReasonCode): Promise<void> {
     const reason = GOODBYE_KNOWN_CODES[goodbye.toString()] || "";
     const peerIdStr = peer.toString();
+
+
+     // ▼▼▼ ДОБАВЬТЕ ЭТУ СТРОЧКУ ПРЯМО ЗДЕСЬ ▼▼▼
+     logP2PEvent('PEER_GOODBYE_SENT', peerIdStr, {
+     reasonCode: goodbye.toString(),
+     reasonText: reason,
+     direction: 'outbound' // <-- Ключевое: это МЫ инициируем отключение
+    });
+     // ▲▲▲ КОНЕЦ ДОБАВЛЕНИЯ ▲▲▲
+
     try {
       this.metrics?.peerGoodbyeSent.inc({reason});
       this.logger.debug("initiating goodbyeAndDisconnect peer", {reason, peerId: prettyPrintPeerId(peer)});

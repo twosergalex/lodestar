@@ -81,6 +81,10 @@ import {INetwork} from "../interface.js";
 import {PeerAction} from "../peers/index.js";
 import {AggregatorTracker} from "./aggregatorTracker.js";
 
+
+import { logP2PEvent } from '../network.js';
+
+
 /**
  * Gossip handler options as part of network options
  */
@@ -493,8 +497,17 @@ function getSequentialHandlers(modules: ValidatorFnsModules, options: GossipHand
       peerIdStr,
       seenTimestampSec,
     }: GossipHandlerParamGeneric<GossipType.beacon_block>) => {
-      const {serializedData} = gossipData;
+      
+      
 
+    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+   logP2PEvent('BEACON_BLOCK_RECEIVED', peerIdStr, {
+     fork: topic.boundary.fork,
+     seenAt: seenTimestampSec
+   });
+    // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+           
+      const {serializedData} = gossipData;
       const signedBlock = sszDeserialize(topic, serializedData);
       const blockInput = await validateBeaconBlock(signedBlock, topic.boundary.fork, peerIdStr, seenTimestampSec);
       chain.serializedCache.set(signedBlock, serializedData);
@@ -828,6 +841,19 @@ function getBatchHandlers(modules: ValidatorFnsModules, options: GossipHandlerOp
     [GossipType.beacon_attestation]: async (
       gossipHandlerParams: GossipHandlerParamGeneric<GossipType.beacon_attestation>[]
     ): Promise<(null | AttestationError)[]> => {
+
+
+      // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+  // Логируем каждый аттестат в пакете
+  for (const param of gossipHandlerParams) {
+    logP2PEvent('BEACON_ATTESTATION_RECEIVED', param.peerIdStr, {
+      slot: param.gossipData.msgSlot,
+      subnet: param.topic.subnet
+    });
+  }
+  // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+  
       const results: (null | AttestationError)[] = [];
       const attestationCount = gossipHandlerParams.length;
       if (attestationCount === 0) {

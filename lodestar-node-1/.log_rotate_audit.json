@@ -1,0 +1,35 @@
+{
+    "keep": {
+        "days": false,
+        "amount": 5
+    },
+    "auditLog": "lodestar-node-1/.log_rotate_audit.json",
+    "files": [
+        {
+            "date": 1766153044894,
+            "name": "lodestar-node-1/beacon-2025-12-19.log",
+            "hash": "14f25a3c0e2c7aa8a0ca32291bf5a5055091c38ace3c83830005d2491ad5f9a9"
+        },
+        {
+            "date": 1766153047088,
+            "name": "lodestar-node-1/validator-2025-12-19.log",
+            "hash": "9c72193001134eb176e1ebbb2b3e3564b145968e6dcbe80c400edd60d78f6ebd"
+        },
+        {
+            "date": 1766188806680,
+            "name": "lodestar-node-1/beacon-2025-12-20.log",
+            "hash": "4d140af2b33b06d4d4a782f788862e1e56e10c44f4e0d9a35fe11d6d082a372b"
+        },
+        {
+            "date": 1766416385672,
+            "name": "lodestar-node-1/beacon-2025-12-22.log",
+            "hash": "92cf8a97857dd53bfd79f7bde2af4058a6429a04605ca2564059a0f7d5f67228"
+        },
+        {
+            "date": 1766416387951,
+            "name": "lodestar-node-1/validator-2025-12-22.log",
+            "hash": "00b458fb6dac1f546e4a3f75f12f1cabf204923cf22dceea542f9a5897843b27"
+        }
+    ],
+    "hashType": "sha256"
+}
