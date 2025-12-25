@@ -328,12 +328,15 @@ export class PeerManager {
   private onPing(peer: PeerId, seqNumber: phase0.Ping): void {
 
 
-     // ▼▼▼ ДОБАВЬТЕ ЗДЕСЬ ▼▼▼
-  logP2PEvent('PEER_PING_RECEIVED', peer.toString(), {
+    // ▼▼▼ ДОБАВЬТЕ ЗДЕСЬ ▼▼▼
+
+    logP2PEvent('PEER_PING_RECEIVED', peer.toString(), {
     seqNumber: seqNumber.toString(),
-    direction: 'inbound'
+    direction: 'inbound' as const, // Явно указываем тип
+    isResponseToOurPing: this.pendingPings.has(peer.toString())
   });
-  // ▲▲▲ КОНЕЦ ДОБАВЛЕНИЯ ▲▲▲
+
+    // ▲▲▲ КОНЕЦ ДОБАВЛЕНИЯ ▲▲▲
 
 
 
@@ -368,6 +371,34 @@ export class PeerManager {
 
     if (peerData) {
       const oldMetadata = peerData.metadata;
+
+
+      // ========== НАЧАЛО ВСТАВКИ (SUBNET CHANGES) ==========
+      // Сравниваем подписки (валидаторы меняют их)
+    if (oldMetadata && oldMetadata.attnets && metadata.attnets) {
+    const oldSubnets = oldMetadata.attnets.getTrueBitIndexes();
+    const newSubnets = metadata.attnets.getTrueBitIndexes();
+    
+    // Находим изменения
+    const added = newSubnets.filter(x => !oldSubnets.includes(x));
+    const removed = oldSubnets.filter(x => !newSubnets.includes(x));
+    
+    if (added.length > 0 || removed.length > 0) {
+        logP2PEvent('PEER_SUBNET_CHANGED', peer.toString(), {
+            client: peerData.agentClient || 'unknown',
+            addedSubnets: added.join(','),
+            removedSubnets: removed.join(','),
+            totalBefore: oldSubnets.length,
+            totalAfter: newSubnets.length,
+            isValidator: (newSubnets.length > 0) ? 'YES' : 'NO',
+            note: 'Changing subnets indicates validator activity'
+        });
+    }
+}
+    // ========== КОНЕЦ ВСТАВКИ ==========
+
+
+
       const custodyGroupCount =
         (metadata as Partial<fulu.Metadata>).custodyGroupCount ?? this.config.CUSTODY_REQUIREMENT;
       const samplingGroupCount = Math.max(this.config.SAMPLES_PER_SLOT, custodyGroupCount);
@@ -636,6 +667,44 @@ export class PeerManager {
 
     // ban and disconnect peers with bad score, collect rest of healthy peers
     const connectedHealthyPeers: PeerId[] = [];
+
+
+     // ========== НАЧАЛО ВСТАВКИ (SCORING STATS) ==========
+    // Собираем статистику по скорингу
+    let totalScore = 0;
+    let bannedCount = 0;
+    let disconnectedCount = 0;
+    let healthyCount = 0;
+
+    for (const peer of connectedPeers) {
+    const score = this.peerRpcScores.getScore(peer);
+    const state = this.peerRpcScores.getScoreState(peer);
+    totalScore += score;
+    if (state === ScoreState.Banned) bannedCount++;
+    else if (state === ScoreState.Disconnected) disconnectedCount++;
+    else healthyCount++;
+    }
+
+    // Вычисляем проценты (защита от деления на 0)
+    const bannedPercent = connectedPeers.length > 0 ? 
+    ((bannedCount / connectedPeers.length) * 100).toFixed(1) + '%' : '0%';
+    
+    const disconnectedPercent = connectedPeers.length > 0 ? 
+    ((disconnectedCount / connectedPeers.length) * 100).toFixed(1) + '%' : '0%';
+
+    logP2PEvent('HEARTBEAT_SCORING', '', {
+    totalPeers: connectedPeers.length,
+    avgScore: connectedPeers.length > 0 ? (totalScore / connectedPeers.length).toFixed(2) : '0',
+    bannedPeers: bannedCount,
+    disconnectedPeers: disconnectedCount,
+    healthyPeers: healthyCount,
+    bannedPercent: bannedPercent,
+    disconnectedPercent: disconnectedPercent
+    });
+    // ========== КОНЕЦ ВСТАВКИ ==========
+
+
+
     for (const peer of connectedPeers) {
       switch (this.peerRpcScores.getScoreState(peer)) {
         case ScoreState.Banned:
@@ -688,6 +757,26 @@ export class PeerManager {
       this.config,
       this.metrics
     );
+
+
+    // ========== НАЧАЛО ВСТАВКИ (DISCOVERY DECISION) ==========
+    // Логируем решение о поиске пиров
+     const totalToDisconnect = Array.from(peersToDisconnect.values()).reduce((sum, arr) => sum + arr.length, 0);
+
+   logP2PEvent('HEARTBEAT_DISCOVERY_NEEDED', '', {
+    needMorePeers: peersToConnect,
+    willDisconnect: totalToDisconnect,
+    disconnectReasons: Array.from(peersToDisconnect.keys()).join(',') || 'none',
+    attnetQueries: attnetQueries.length,
+    syncnetQueries: syncnetQueries.length,
+    custodyQueries: custodyGroupQueries.size,
+    isStarved: starved ? 'YES' : 'NO',
+    starvedSlots: starved ? (this.clock.currentSlot - status.headSlot) : 0,
+    headSlotGap: this.clock.currentSlot - status.headSlot,
+    currentSlot: this.clock.currentSlot,
+    peerHeadSlot: status.headSlot
+   });
+   // ========== КОНЕЦ ВСТАВКИ ==========
 
     const queriesMerged: SubnetDiscvQueryMs[] = [];
     for (const {type, queries} of [

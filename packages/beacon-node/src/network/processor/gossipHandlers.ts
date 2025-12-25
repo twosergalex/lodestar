@@ -520,6 +520,18 @@ function getSequentialHandlers(modules: ValidatorFnsModules, options: GossipHand
       peerIdStr,
       seenTimestampSec,
     }: GossipHandlerParamGeneric<GossipType.blob_sidecar>) => {
+
+      // ▼▼▼ ВСТАВЬТЕ ЭТО ▼▼▼
+     try {
+     logP2PEvent('BLOB_SIDECAR_RECEIVED', peerIdStr, {
+      subnet: topic.subnet,
+      fork: topic.boundary.fork,
+      seenAt: seenTimestampSec
+     });
+    } catch (e) { /* игнорируем ошибки логирования */ }
+     // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+
+
       const {serializedData} = gossipData;
       const blobSidecar = sszDeserialize(topic, serializedData);
       const blobSlot = blobSidecar.signedBlockHeader.message.slot;
@@ -559,6 +571,19 @@ function getSequentialHandlers(modules: ValidatorFnsModules, options: GossipHand
       peerIdStr,
       seenTimestampSec,
     }: GossipHandlerParamGeneric<GossipType.data_column_sidecar>) => {
+
+
+      // ▼▼▼ ВСТАВЬТЕ ЭТО ▼▼▼
+      try {
+      logP2PEvent('DATA_COLUMN_SIDECAR_RECEIVED', peerIdStr, {
+      subnet: topic.subnet,
+      fork: topic.boundary.fork,
+      seenAt: seenTimestampSec
+     });
+     } catch (e) { /* игнорируем ошибки логирования */ }
+     // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+
+     
       const {serializedData} = gossipData;
       const dataColumnSidecar = sszDeserialize(topic, serializedData);
       const dataColumnSlot = dataColumnSidecar.signedBlockHeader.message.slot;
@@ -629,6 +654,18 @@ function getSequentialHandlers(modules: ValidatorFnsModules, options: GossipHand
       topic,
       seenTimestampSec,
     }: GossipHandlerParamGeneric<GossipType.beacon_aggregate_and_proof>) => {
+
+
+      // ▼▼▼ ВСТАВЬТЕ ЭТО ▼▼▼
+     try {
+     logP2PEvent('BEACON_AGGREGATE_AND_PROOF_RECEIVED', 'unknown', {
+      fork: topic.boundary.fork,
+      seenAt: seenTimestampSec
+     });
+     } catch (e) { /* игнорируем ошибки логирования */ }
+     // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+
+
       const {serializedData} = gossipData;
       let validationResult: AggregateAndProofValidationResult;
       const signedAggregateAndProof = sszDeserialize(topic, serializedData);

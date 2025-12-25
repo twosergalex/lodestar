@@ -36,6 +36,11 @@ import {
 } from "./types.js";
 import {collectExactOneTyped} from "./utils/collect.js";
 
+
+import { logP2PEvent } from '../network.js';
+
+
+
 export {getReqRespHandlers} from "./handlers/index.js";
 export {ReqRespMethod, type RequestTypedContainer} from "./types.js";
 
@@ -152,6 +157,18 @@ export class ReqRespBeaconNode extends ReqResp {
     versions: number[],
     requestData: Uint8Array
   ): AsyncIterable<ResponseIncoming> {
+
+
+     // ▼▼▼ ВСТАВКА 2/3 - ВСЕ исходящие RPC ▼▼▼
+  try {
+    logP2PEvent('RPC_OUT', peerId.toString(), {
+      method: method, // оставляем как число
+      size: requestData.length
+    });
+  } catch (e) {}
+     // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+
+
     // Remember preferred encoding
     const encoding = this.peersData.getEncodingPreference(peerId.toString()) ?? Encoding.SSZ_SNAPPY;
 
@@ -301,6 +318,18 @@ export class ReqRespBeaconNode extends ReqResp {
   }
 
   protected onIncomingRequestBody(request: RequestTypedContainer, peer: PeerId): void {
+
+
+
+      // ▼▼▼ ВСТАВКА 1/3 - ВСЕ входящие RPC ▼▼▼
+  try {
+    logP2PEvent('RPC_IN', peer.toString(), {
+      method: request.method, // оставляем как число, проще
+      client: this.peersData.getPeerKind(peer.toString()) || 'unknown'
+    });
+   } catch (e) {}
+  // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+  
     const peerClient = this.peersData.getPeerKind(peer.toString()) ?? ClientKind.Unknown;
     // Allow onRequest to return and close the stream
     // For Goodbye there may be a race condition where the listener of `receivedGoodbye`
@@ -316,6 +345,20 @@ export class ReqRespBeaconNode extends ReqResp {
   }
 
   protected onOutgoingRequestError(peerId: PeerId, method: ReqRespMethod, error: RequestError): void {
+
+
+
+     // ▼▼▼ ВСТАВКА 3/3 - ВСЕ ошибки RPC ▼▼▼
+  try {
+    logP2PEvent('RPC_ERR', peerId.toString(), {
+      method: method,
+      error: error.type.code
+    });
+  } catch (e) {}
+  // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+
+
+  
     const peerAction = onOutgoingReqRespError(error, method);
     if (peerAction !== null) {
       this.peerRpcScores.applyAction(peerId, peerAction, error.type.code);
