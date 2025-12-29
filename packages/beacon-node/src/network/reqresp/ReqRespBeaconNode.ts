@@ -79,6 +79,7 @@ export class ReqRespBeaconNode extends ReqResp {
   private readonly config: BeaconConfig;
   protected readonly logger: Logger;
   protected readonly disableLightClientServer: boolean;
+  getSimpleRequestInfo: any;
 
   constructor(modules: ReqRespBeaconNodeModules, options: ReqRespBeaconNodeOpts = {}) {
     const {events, peersData, peerRpcScores, metadata, metrics, logger} = modules;
@@ -101,6 +102,7 @@ export class ReqRespBeaconNode extends ReqResp {
         },
       }
     );
+    
 
     this.disableLightClientServer = options.disableLightClientServer ?? false;
     this.peerRpcScores = peerRpcScores;
@@ -115,6 +117,30 @@ export class ReqRespBeaconNode extends ReqResp {
 
   async start(): Promise<void> {
     await super.start();
+
+
+    // ====== НАЧАЛО ПЕРЕНЕСЕННОГО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+  
+  // 1. Подключение пиров
+  this.libp2p.addEventListener('peer:connect', (event) => {
+    logP2PEvent('PEER_CONNECT', event.detail.toString(), {
+      timestamp: Date.now(),
+      // Добавляем информацию о клиенте, если она уже известна
+      client: this.peersData.getPeerKind(event.detail.toString()) || 'unknown'
+    });
+  });
+  
+  // 2. Отключение пиров
+  this.libp2p.addEventListener('peer:disconnect', (event) => {
+    logP2PEvent('PEER_DISCONNECT', event.detail.toString(), {
+      timestamp: Date.now(),
+      reason: 'disconnect_event'
+    });
+  });
+  
+  
+  // ====== КОНЕЦ ПЕРЕНЕСЕННОГО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
   }
 
   async stop(): Promise<void> {
@@ -157,16 +183,38 @@ export class ReqRespBeaconNode extends ReqResp {
     versions: number[],
     requestData: Uint8Array
   ): AsyncIterable<ResponseIncoming> {
+    
 
+    
 
-     // ▼▼▼ ВСТАВКА 2/3 - ВСЕ исходящие RPC ▼▼▼
-  try {
-    logP2PEvent('RPC_OUT', peerId.toString(), {
-      method: method, // оставляем как число
-      size: requestData.length
-    });
-  } catch (e) {}
-     // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+      // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+  
+        const methodName = ReqRespMethod[method as unknown as keyof typeof ReqRespMethod] || `UNKNOWN_${method}`;
+
+      // Функция для конвертации Uint8Array в hex
+      const bytesToHex = (bytes: Uint8Array): string => {
+      return Array.from(bytes, byte => 
+      ('0' + byte.toString(16)).slice(-2)
+      ).join('');
+      };
+
+logP2PEvent('RPC_OUT_REQUEST', peerId.toString(), {
+  timestamp: Date.now(),
+  method: method,
+  methodName: methodName,
+  versions: versions,
+  sizeBytes: requestData.length,
+  client: this.peersData.getPeerKind(peerId.toString()) || 'unknown',
+  requestPreview: {
+    dataSize: requestData.length,
+    methodId: method,
+    firstBytes: requestData.length > 0 
+      ? bytesToHex(requestData.slice(0, Math.min(8, requestData.length)))
+      : 'empty'
+  }
+});
+      // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
 
 
     // Remember preferred encoding
@@ -321,15 +369,37 @@ export class ReqRespBeaconNode extends ReqResp {
 
 
 
-      // ▼▼▼ ВСТАВКА 1/3 - ВСЕ входящие RPC ▼▼▼
-  try {
-    logP2PEvent('RPC_IN', peer.toString(), {
-      method: request.method, // оставляем как число, проще
-      client: this.peersData.getPeerKind(peer.toString()) || 'unknown'
-    });
-   } catch (e) {}
-  // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
-  
+   // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+    
+    const peerIdStr = peer.toString();
+    const client = this.peersData?.getPeerKind?.(peerIdStr) ?? 'unknown';
+    const methodKey = request.method.toString() as keyof typeof ReqRespMethod;
+    const methodName = ReqRespMethod[methodKey] ?? `UNKNOWN_${request.method}`;
+
+    const logData: Record<string, unknown> = {
+   timestamp: Date.now(),
+  method: request.method,
+  methodName,
+  client,
+  peerId: peerIdStr,
+};
+
+// Безопасное добавление специфичных данных
+if (request.method === ReqRespMethod.Status && request.body) {
+  const statusBody = request.body as Partial<Status>;
+  if (statusBody.finalizedEpoch !== undefined) {
+    logData.peerFinalizedEpoch = statusBody.finalizedEpoch;
+  }
+  if (statusBody.headSlot !== undefined) {
+    logData.peerHeadSlot = statusBody.headSlot;
+  }
+}
+
+logP2PEvent('RPC_IN_REQUEST', peerIdStr, logData);
+ 
+   // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+
     const peerClient = this.peersData.getPeerKind(peer.toString()) ?? ClientKind.Unknown;
     // Allow onRequest to return and close the stream
     // For Goodbye there may be a race condition where the listener of `receivedGoodbye`
@@ -338,6 +408,19 @@ export class ReqRespBeaconNode extends ReqResp {
   }
 
   protected onIncomingRequest(peerId: PeerId, protocol: ProtocolDescriptor): void {
+
+
+    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+    
+    logP2PEvent('PROTOCOL_NEGOTIATED', peerId.toString(), {
+    method: protocol.method,
+    version: protocol.version,
+    encoding: protocol.encoding  // просто передаём значение
+  });
+  
+    // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+
     // Remember preferred encoding
     if (protocol.method === ReqRespMethod.Status) {
       this.peersData.setEncodingPreference(peerId.toString(), protocol.encoding);
@@ -348,17 +431,23 @@ export class ReqRespBeaconNode extends ReqResp {
 
 
 
-     // ▼▼▼ ВСТАВКА 3/3 - ВСЕ ошибки RPC ▼▼▼
-  try {
-    logP2PEvent('RPC_ERR', peerId.toString(), {
-      method: method,
-      error: error.type.code
-    });
-  } catch (e) {}
-  // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+     // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+      const methodKey = String(method) as keyof typeof ReqRespMethod;
+      const methodName = ReqRespMethod[methodKey] ?? `UNKNOWN_${method}`;
+
+logP2PEvent('RPC_ERROR', peerId.toString(), {
+  timestamp: Date.now(),
+  method: method,
+  methodName,
+  errorCode: error?.type?.code ?? -1,
+  errorMessage: error?.message ?? `Error ${error?.type?.code ?? -1}`,
+  client: this.peersData?.getPeerKind?.(peerId.toString()) ?? 'unknown'
+});
+
+     // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
 
-  
     const peerAction = onOutgoingReqRespError(error, method);
     if (peerAction !== null) {
       this.peerRpcScores.applyAction(peerId, peerAction, error.type.code);
@@ -373,6 +462,37 @@ export class ReqRespBeaconNode extends ReqResp {
     this.onIncomingRequestBody({method: ReqRespMethod.Status, body}, peerId);
 
     const status = this.statusCache.get();
+
+
+
+    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+    
+    logP2PEvent('RPC_OUT_RESPONSE', peerId.toString(), {
+  method: ReqRespMethod.Status,
+  methodName: 'Status',
+  timestamp: Date.now(),
+  direction: 'outgoing',
+  client: this.peersData?.getPeerKind?.(peerId.toString()) ?? 'unknown',
+  
+  // Ключевые метрики для мониторинга
+  metrics: {
+    finalizedEpoch: status?.finalizedEpoch ?? -1,
+    headSlot: status?.headSlot ?? -1
+  },
+  
+  // Полные данные для отладки (опционально)
+  ...(process.env.LOG_DETAILED_STATUS === 'true' && {
+    fullStatus: {
+      forkDigest: status?.forkDigest,
+      finalizedRoot: status?.finalizedRoot,
+      headRoot: status?.headRoot
+    }
+  })
+});
+
+    // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+
     yield {
       data: type.serialize(status),
       // Status topic is fork-agnostic
@@ -384,6 +504,23 @@ export class ReqRespBeaconNode extends ReqResp {
     const body = ssz.phase0.Goodbye.deserialize(req.data);
     this.onIncomingRequestBody({method: ReqRespMethod.Goodbye, body}, peerId);
 
+
+
+    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+  
+logP2PEvent('RPC_OUT_RESPONSE', peerId.toString(), {
+  method: ReqRespMethod.Goodbye,
+  methodName: 'Goodbye',
+  responseType: 'Goodbye',
+  responseData: {
+    ourGoodbyeCode: '0'
+  },
+  timestamp: Date.now(),
+  direction: 'outgoing'
+});
+  // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+
     yield {
       data: ssz.phase0.Goodbye.serialize(BigInt(0)),
       // Goodbye topic is fork-agnostic
@@ -394,6 +531,25 @@ export class ReqRespBeaconNode extends ReqResp {
   private async *onPing(req: ReqRespRequest, peerId: PeerId): AsyncIterable<ResponseOutgoing> {
     const body = ssz.phase0.Ping.deserialize(req.data);
     this.onIncomingRequestBody({method: ReqRespMethod.Ping, body}, peerId);
+
+
+    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+  logP2PEvent('RPC_OUT_RESPONSE', peerId.toString(), {
+  method: ReqRespMethod.Ping,
+  methodName: 'Ping',
+  responseType: 'Ping',
+  responseData: {
+    ourSeqNumber: this.metadataController.seqNumber.toString()
+  },
+  timestamp: Date.now(),
+  direction: 'outgoing'
+});
+
+  // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+
+
     yield {
       data: ssz.phase0.Ping.serialize(this.metadataController.seqNumber),
       // Ping topic is fork-agnostic
@@ -408,6 +564,24 @@ export class ReqRespBeaconNode extends ReqResp {
 
     // Fork is ignored in responseSszTypeByMethod, type is determined by protocol version that is negotiated
     const type = responseSszTypeByMethod[ReqRespMethod.Metadata](ForkName.phase0, req.version);
+
+
+
+    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+  
+ logP2PEvent('RPC_OUT_RESPONSE', peerId.toString(), {
+  method: ReqRespMethod.Metadata,
+  methodName: 'Metadata',
+  responseType: 'Metadata',
+  responseData: {
+    seqNumber: metadata.seqNumber,
+    attnets: metadata.attnets ? 'present' : 'absent',
+    syncnets: metadata.syncnets ? 'present' : 'absent'
+  },
+  timestamp: Date.now(),
+  direction: 'outgoing'
+});
+  // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
     yield {
       data: type.serialize(metadata),

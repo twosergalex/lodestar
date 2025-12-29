@@ -501,6 +501,7 @@ function getSequentialHandlers(modules: ValidatorFnsModules, options: GossipHand
       
 
     // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
    logP2PEvent('BEACON_BLOCK_RECEIVED', peerIdStr, {
      fork: topic.boundary.fork,
      seenAt: seenTimestampSec
@@ -521,15 +522,15 @@ function getSequentialHandlers(modules: ValidatorFnsModules, options: GossipHand
       seenTimestampSec,
     }: GossipHandlerParamGeneric<GossipType.blob_sidecar>) => {
 
-      // ▼▼▼ ВСТАВЬТЕ ЭТО ▼▼▼
-     try {
+      // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
      logP2PEvent('BLOB_SIDECAR_RECEIVED', peerIdStr, {
       subnet: topic.subnet,
       fork: topic.boundary.fork,
       seenAt: seenTimestampSec
      });
-    } catch (e) { /* игнорируем ошибки логирования */ }
-     // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+    
+     // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
 
       const {serializedData} = gossipData;
@@ -573,15 +574,15 @@ function getSequentialHandlers(modules: ValidatorFnsModules, options: GossipHand
     }: GossipHandlerParamGeneric<GossipType.data_column_sidecar>) => {
 
 
-      // ▼▼▼ ВСТАВЬТЕ ЭТО ▼▼▼
-      try {
+      // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+    
       logP2PEvent('DATA_COLUMN_SIDECAR_RECEIVED', peerIdStr, {
-      subnet: topic.subnet,
       fork: topic.boundary.fork,
+      subnet: topic.subnet,
       seenAt: seenTimestampSec
      });
-     } catch (e) { /* игнорируем ошибки логирования */ }
-     // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+     
+     // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
      
       const {serializedData} = gossipData;
@@ -656,15 +657,14 @@ function getSequentialHandlers(modules: ValidatorFnsModules, options: GossipHand
     }: GossipHandlerParamGeneric<GossipType.beacon_aggregate_and_proof>) => {
 
 
-      // ▼▼▼ ВСТАВЬТЕ ЭТО ▼▼▼
-     try {
+      // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+    
      logP2PEvent('BEACON_AGGREGATE_AND_PROOF_RECEIVED', 'unknown', {
       fork: topic.boundary.fork,
       seenAt: seenTimestampSec
      });
-     } catch (e) { /* игнорируем ошибки логирования */ }
-     // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
-
+     
+     // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
       const {serializedData} = gossipData;
       let validationResult: AggregateAndProofValidationResult;
@@ -881,14 +881,14 @@ function getBatchHandlers(modules: ValidatorFnsModules, options: GossipHandlerOp
 
 
       // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
-  // Логируем каждый аттестат в пакете
-  for (const param of gossipHandlerParams) {
-    logP2PEvent('BEACON_ATTESTATION_RECEIVED', param.peerIdStr, {
+      // Логируем каждый аттестат в пакете
+     for (const param of gossipHandlerParams) {
+     logP2PEvent('BEACON_ATTESTATION_RECEIVED', param.peerIdStr, {
       slot: param.gossipData.msgSlot,
       subnet: param.topic.subnet
-    });
-  }
-  // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+     });
+     }
+     // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
   
       const results: (null | AttestationError)[] = [];

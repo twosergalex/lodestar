@@ -167,10 +167,10 @@ export class PeerManager {
   private connectedPeers: Map<PeerIdStr, PeerData>;
 
 
-  // ▼▼▼ ВСТАВЬТЕ ЭТО ПРЯМО ЗДЕСЬ ▼▼▼
+  // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
   // Карта для отслеживания времени отправки PING (peerId -> timestamp)
   private pendingPings = new Map<string, number>();
-  // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+  // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
   private opts: PeerManagerOpts;
   private intervals: NodeJS.Timeout[] = [];
@@ -328,7 +328,7 @@ export class PeerManager {
   private onPing(peer: PeerId, seqNumber: phase0.Ping): void {
 
 
-    // ▼▼▼ ДОБАВЬТЕ ЗДЕСЬ ▼▼▼
+   // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
     logP2PEvent('PEER_PING_RECEIVED', peer.toString(), {
     seqNumber: seqNumber.toString(),
@@ -336,7 +336,7 @@ export class PeerManager {
     isResponseToOurPing: this.pendingPings.has(peer.toString())
   });
 
-    // ▲▲▲ КОНЕЦ ДОБАВЛЕНИЯ ▲▲▲
+    // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
 
 
@@ -361,19 +361,20 @@ export class PeerManager {
     });
 
 
-    // ▼▼▼ ВСТАВЬТЕ ЭТОТ КОД ПРЯМО ЗДЕСЬ ▼▼▼
+    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
     logP2PEvent('PEER_METADATA', peer.toString(), {
         seqNumber: metadata.seqNumber.toString(),
         attnetsCount: metadata.attnets?.getTrueBitIndexes().length || 0
     });
-    // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+    // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
 
     if (peerData) {
       const oldMetadata = peerData.metadata;
 
 
-      // ========== НАЧАЛО ВСТАВКИ (SUBNET CHANGES) ==========
+      // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
       // Сравниваем подписки (валидаторы меняют их)
     if (oldMetadata && oldMetadata.attnets && metadata.attnets) {
     const oldSubnets = oldMetadata.attnets.getTrueBitIndexes();
@@ -394,9 +395,8 @@ export class PeerManager {
             note: 'Changing subnets indicates validator activity'
         });
     }
-}
-    // ========== КОНЕЦ ВСТАВКИ ==========
-
+   }
+    // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
 
       const custodyGroupCount =
@@ -438,13 +438,13 @@ export class PeerManager {
     const reason = GOODBYE_KNOWN_CODES[goodbye.toString()] || "";
 
 
-     // ▼▼▼ ДОБАВЬТЕ ЗДЕСЬ ▼▼▼
-  logP2PEvent('PEER_GOODBYE_RECEIVED', peer.toString(), {
-    reasonCode: goodbye.toString(),
-    reasonText: reason,
-    direction: 'inbound'
-  });
-  // ▲▲▲ КОНЕЦ ДОБАВЛЕНИЯ ▲▲▲
+     // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+     logP2PEvent('PEER_GOODBYE_RECEIVED', peer.toString(), {
+     reasonCode: goodbye.toString(),
+     reasonText: reason,
+     direction: 'inbound'
+     });
+     // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
 
 
@@ -471,14 +471,14 @@ export class PeerManager {
     }
 
 
-    // ▼▼▼ ВСТАВЬТЕ ЭТОТ КОД ПРЯМО ЗДЕСЬ ▼▼▼
+    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
     logP2PEvent('PEER_STATUS', peer.toString(), {
         forkDigest: toHex(status.forkDigest).slice(0, 10),
         headSlot: status.headSlot.toString(),
         finalizedEpoch: status.finalizedEpoch.toString(),
         client: peerData?.agentClient || 'unknown'
     });
-    // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+    // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
 
 
@@ -575,24 +575,18 @@ export class PeerManager {
     const peerIdStr = peer.toString();
     const pingSentTime = Date.now();
     
-    // ▼▼▼ ЭТО НОВОЕ - для измерения времени ▼▼▼
+    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
     this.pendingPings.set(peerIdStr, pingSentTime);
-    // ▲▲▲ КОНЕЦ НОВОГО ▲▲▲
     
-    // ▼▼▼ ЭТО ВАШЕ СТАРОЕ (оставьте) ▼▼▼
     logP2PEvent('PEER_PING_SENT', peerIdStr, {
       direction: 'outbound',
-      timestamp: pingSentTime  // поменяли Date.now() на pingSentTime
+      timestamp: pingSentTime
     });
-    // ▲▲▲ КОНЕЦ ВАШЕГО ▲▲▲
 
     try {
       this.onPing(peer, await this.reqResp.sendPing(peer));
-      
-      // ▼▼▼ ЭТО НОВОЕ - вычисляем задержку ▼▼▼
       const pingReceivedTime = Date.now();
       const initialTime = this.pendingPings.get(peerIdStr);
-      
       if (initialTime) {
         const latencyMs = pingReceivedTime - initialTime;
         
@@ -601,17 +595,14 @@ export class PeerManager {
           success: true,
           timestamp: pingReceivedTime
         });
-        
         this.pendingPings.delete(peerIdStr);
       }
-      // ▲▲▲ КОНЕЦ НОВОГО ▲▲▲
-
+     
       // Если пир ответил, обновляем время последнего сообщения
       const peerData = this.connectedPeers.get(peer.toString());
       if (peerData) peerData.lastReceivedMsgUnixTsMs = Date.now();
       
     } catch (e) {
-      // ▼▼▼ ЭТО НОВОЕ - логируем таймаут ▼▼▼
       const initialTime = this.pendingPings.get(peerIdStr);
       if (initialTime) {
         const timeoutDuration = Date.now() - initialTime;
@@ -625,7 +616,7 @@ export class PeerManager {
         
         this.pendingPings.delete(peerIdStr);
       }
-      // ▲▲▲ КОНЕЦ НОВОГО ▲▲▲
+      // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
       
       this.logger.verbose("invalid requestPing", {peer: prettyPrintPeerIdStr(peerIdStr)}, e as Error);
     }
@@ -669,7 +660,7 @@ export class PeerManager {
     const connectedHealthyPeers: PeerId[] = [];
 
 
-     // ========== НАЧАЛО ВСТАВКИ (SCORING STATS) ==========
+     // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
     // Собираем статистику по скорингу
     let totalScore = 0;
     let bannedCount = 0;
@@ -701,7 +692,7 @@ export class PeerManager {
     bannedPercent: bannedPercent,
     disconnectedPercent: disconnectedPercent
     });
-    // ========== КОНЕЦ ВСТАВКИ ==========
+    // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
 
 
@@ -759,7 +750,8 @@ export class PeerManager {
     );
 
 
-    // ========== НАЧАЛО ВСТАВКИ (DISCOVERY DECISION) ==========
+    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
     // Логируем решение о поиске пиров
      const totalToDisconnect = Array.from(peersToDisconnect.values()).reduce((sum, arr) => sum + arr.length, 0);
 
@@ -776,7 +768,7 @@ export class PeerManager {
     currentSlot: this.clock.currentSlot,
     peerHeadSlot: status.headSlot
    });
-   // ========== КОНЕЦ ВСТАВКИ ==========
+   // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
     const queriesMerged: SubnetDiscvQueryMs[] = [];
     for (const {type, queries} of [
@@ -898,7 +890,7 @@ export class PeerManager {
 
     
 
-    // ▼▼▼ ВСТАВЬТЕ ВАШ КОД ПРЯМО ЗДЕСЬ ▼▼▼
+    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
     logP2PEvent('PEER_TCP_CONNECTED', remotePeerStr, {
         direction: direction === 'inbound' ? 'входящее' : 'исходящее', // ← direction это СТРОКА!
@@ -906,7 +898,7 @@ export class PeerManager {
         connectionStatus: status
     });
 
-    // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+   // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
 
 
@@ -961,14 +953,14 @@ export class PeerManager {
         }
 
 
-        // ▼▼▼ ВСТАВЬТЕ ЭТОТ КОД ПРЯМО ЗДЕСЬ ▼▼▼
+        // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
         logP2PEvent('PEER_IDENTIFY', remotePeerStr, {
             agentVersion: result.agentVersion || 'unknown',
             protocols: result.protocols || [],
             client: peerData?.agentClient || 'unknown'
         });
-        // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
-
+        // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
       })
       .catch((err) => {
@@ -991,7 +983,7 @@ export class PeerManager {
     const peerIdStr = remotePeer.toString();
 
 
-    // ▼▼▼ ВСТАВЬТЕ ВАШ КОД ПРЯМО ЗДЕСЬ (ПЕРВЫМ) ▼▼▼
+    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
     // Определяем причину
     let disconnectReason = 'unknown';
@@ -1015,7 +1007,7 @@ export class PeerManager {
         scoreState: ScoreState[scoreState] || 'unknown'
     });
 
-    // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+   // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
 
     let logMessage = "onLibp2pPeerDisconnect";

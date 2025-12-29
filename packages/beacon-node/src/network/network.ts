@@ -62,22 +62,51 @@ import {isPublishToZeroPeersError, prettyPrintPeerIdStr} from "./util.js"
 
 
 
+// ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
 
-// ===== КОД АНАЛИЗАТОРА P2P =====
-import fs from 'fs';
-import path from 'path';
+ import fsPromises from 'fs/promises';
+ import path from 'path';
 
-// Универсальный логгер для записи событий в файл
+// Буфер для асинхронной записи
+let logBuffer: string[] = [];
+let isFlushing = false;
+let logDir: string | null = null;
+
+// Конфигурация умного вывода в консоль
+const CONSOLE_EVENTS = {
+  // Какие события показывать в консоли
+  BEACON_BLOCK_RECEIVED: true,
+  BEACON_AGGREGATE_AND_PROOF_RECEIVED: true,
+  BLOB_SIDECAR_RECEIVED: false,          // слишком много
+  DATA_COLUMN_SIDECAR_RECEIVED: false,   // слишком много
+  BEACON_ATTESTATION_RECEIVED: false     // очень много
+};
+
+// Счетчик для периодического вывода статистики
+let totalMessagesLogged = 0;
+let lastStatTime = Date.now();
+
+// Создание папки для логов (один раз при запуске)
+async function ensureLogDir(): Promise<string> {
+  if (!logDir) {
+    logDir = path.join(process.cwd(), 'p2p-sniffer-logs');
+    try {
+      await fsPromises.mkdir(logDir, { recursive: true });
+      console.log(`[P2P] Папка для логов: ${logDir}`);
+    } catch (error) {
+      console.error('[P2P] Ошибка создания папки логов:', error);
+      // Если не удалось создать папку, используем текущую директорию
+      logDir = process.cwd();
+    }
+  }
+  return logDir;
+}
+
+// Основная функция логирования
 export function logP2PEvent(eventType: string, peerId: string | undefined, details: any = {}) {
   try {
-    const logDir = path.join(process.cwd(), 'p2p-sniffer-logs');
-    if (!fs.existsSync(logDir)) {
-      fs.mkdirSync(logDir, { recursive: true });
-    }
-
     const timestamp = new Date().toISOString();
-    const today = timestamp.split('T')[0];
     const logEntry = {
       timestamp,
       type: eventType,
@@ -85,20 +114,90 @@ export function logP2PEvent(eventType: string, peerId: string | undefined, detai
       details
     };
 
-    // Запись в файл формата JSON Lines (одна строка = одна запись)
-    const logFile = path.join(logDir, `p2p-${today}.jsonl`);
-    fs.appendFileSync(logFile, JSON.stringify(logEntry) + '\n');
+    // Добавляем в буфер
+    logBuffer.push(JSON.stringify(logEntry));
+    totalMessagesLogged++;
 
-    // Опционально: вывод в консоль для отладки
-    console.log(`[P2P] ${eventType} от ${peerId?.substring(0, 8) || 'unknown'}...`);
+    // Умный вывод в консоль
+    if (eventType in CONSOLE_EVENTS && CONSOLE_EVENTS[eventType as keyof typeof CONSOLE_EVENTS]) {
+      const peerShort = peerId?.substring(0, 8) || 'unknown';
+      const detailStr = Object.keys(details).length > 0 
+        ? ` | ${JSON.stringify(details).slice(0, 100)}...`
+        : '';
+      
+      console.log(`[P2P] ${timestamp.split('T')[1].split('.')[0]} ${eventType} от ${peerShort}${detailStr}`);
+    }
+
+    // Периодический вывод статистики (раз в 5 секунд)
+    const now = Date.now();
+    if (now - lastStatTime > 5000) {
+      console.log(`[P2P Stats] Сообщений: ${totalMessagesLogged}, Буфер: ${logBuffer.length}`);
+      lastStatTime = now;
+    }
+
+    // Автоматический сброс буфера при заполнении
+    if (logBuffer.length >= 100 && !isFlushing) {
+      // Асинхронно сбрасываем без ожидания
+      flushBuffer().catch(() => {});
+    }
 
   } catch (error) {
     // Не падаем при ошибке логирования
-    console.error('[P2P Sniffer] Ошибка записи лога:', error);
+    console.error('[P2P Sniffer] Ошибка в logP2PEvent:', error);
   }
 }
 
-// ============================================
+// Асинхронный сброс буфера в файл
+async function flushBuffer(): Promise<void> {
+  if (isFlushing || logBuffer.length === 0) {
+    return;
+  }
+
+  isFlushing = true;
+  const bufferToFlush = [...logBuffer];
+  logBuffer = [];
+
+  try {
+    // Гарантируем, что папка существует
+    const logDirPath = await ensureLogDir();
+    
+    const timestamp = new Date().toISOString();
+    const today = timestamp.split('T')[0];
+    const logFile = path.join(logDirPath, `p2p-${today}.jsonl`);
+
+    // Подготовка данных для записи
+    const logData = bufferToFlush.join('\n') + '\n';
+
+    // Асинхронная запись
+    await fsPromises.appendFile(logFile, logData);
+
+  } catch (error) {
+    console.error('[P2P Sniffer] Ошибка записи лога:', error);
+    
+    // При ошибке возвращаем сообщения обратно в буфер
+    logBuffer = [...bufferToFlush, ...logBuffer];
+  } finally {
+    isFlushing = false;
+  }
+}
+
+// Функция для периодического сброса (раз в секунду)
+setInterval(async () => {
+  if (logBuffer.length > 0 && !isFlushing) {
+    await flushBuffer();
+  }
+}, 1000);
+
+// Автоматический сброс при завершении программы
+process.on('beforeExit', async () => {
+  console.log('[P2P] Завершение работы, сброс логов...');
+  await flushBuffer();
+  console.log(`[P2P] Всего записано сообщений: ${totalMessagesLogged}`);
+});
+
+
+// ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
 
 type NetworkModules = {
   opts: NetworkOptions;

@@ -21,6 +21,11 @@ import {IPeerRpcScoreStore, ScoreState} from "./score/index.js";
 import {deserializeEnrSubnets, zeroAttnets, zeroSyncnets} from "./utils/enrSubnetsDeserialize.js";
 import {type CustodyGroupQueries} from "./utils/prioritizePeers.js";
 
+
+
+
+import { logP2PEvent } from '../network.js';
+
 /** Max number of cached ENRs after discovering a good peer */
 const MAX_CACHED_ENRS = 100;
 /** Max age a cached ENR will be considered for dial */
@@ -210,6 +215,21 @@ export class PeerDiscovery {
     custodyGroupRequests: CustodyGroupQueries,
     subnetRequests: SubnetDiscvQueryMs[] = []
   ): void {
+
+
+
+     // ▼▼▼ ВСТАВКА 1/4 - Начало поиска пиров ▼▼▼
+   try {
+    logP2PEvent('DISCOVERY_START', 'discovery', {
+      peersToConnect,
+      custodyGroups: Array.from(custodyGroupRequests.keys()).join(','),
+      subnetRequests: subnetRequests.length
+    });
+   } catch (e) {}
+  // ▲▲▲ КОНЕЦ ВСТАВКИ ▲▲▲
+
+
+
     const subnetsToDiscoverPeers: SubnetDiscvQueryMs[] = [];
     const cachedENRsToDial = new Map<PeerIdStr, CachedENR>();
     // Iterate in reverse to consider first the most recent ENRs
@@ -342,6 +362,19 @@ export class PeerDiscovery {
       this.metrics?.discovery.findNodeQueryRequests.inc({action: "ignore"});
       return;
     }
+
+    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+    const queryStartTime = Date.now();
+  logP2PEvent('DISCOVERY_FINDNODE_START', undefined, {
+    cachedENRs: this.cachedENRs.size,
+    peersToConnect: this.peersToConnect,
+    timestamp: queryStartTime
+  });
+
+    // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+
     this.metrics?.discovery.findNodeQueryRequests.inc({action: "start"});
 
     // Use async version to prevent blocking the event loop
@@ -352,7 +385,30 @@ export class PeerDiscovery {
     try {
       const enrs = await this.discv5.findRandomNode();
       this.metrics?.discovery.findNodeQueryEnrCount.inc(enrs.length);
+
+
+
+       // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+      logP2PEvent('DISCOVERY_FINDNODE_RESULT', undefined, {
+    enrsFound: enrs.length,
+    queryDurationMs: Date.now() - queryStartTime
+    });
+
+      // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+
     } catch (e) {
+
+      // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+      logP2PEvent('DISCOVERY_FINDNODE_ERROR', undefined, {
+     error: (e as Error).message
+     });
+
+      // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+
       this.logger.error("Error on discv5.findNode()", {}, e as Error);
     } finally {
       this.randomNodeQuery = {code: QueryStatusCode.NotActive};
@@ -390,6 +446,7 @@ export class PeerDiscovery {
     const peerId = enr.peerId;
     // tcp multiaddr is known to be be present, checked inside the worker
     const multiaddrTCP = enr.getLocationMultiaddr(ENRKey.tcp);
+    
     if (!multiaddrTCP) {
       this.logger.warn("Discv5 worker sent enr without tcp multiaddr", {enr: enr.encodeTxt()});
       this.metrics?.discovery.discoveredStatus.inc({status: DiscoveredPeerStatus.no_multiaddrs});
@@ -481,6 +538,21 @@ export class PeerDiscovery {
       // Only dial peer if necessary
       if (this.shouldDialPeer(cachedPeer)) {
         void this.dialPeer(cachedPeer);
+
+
+        
+        // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+
+        logP2PEvent('DISCOVERY_DIAL_DECISION', peerId.toString(), {
+    status: DiscoveredPeerStatus.attempt_dial,
+    attnetsCount: attnets.filter(b => b).length,
+    syncnetsCount: syncnets.filter(b => b).length
+     });
+
+        // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+
         return DiscoveredPeerStatus.attempt_dial;
       }
 
@@ -491,11 +563,28 @@ export class PeerDiscovery {
       return dropped > 0 ? DiscoveredPeerStatus.dropped : DiscoveredPeerStatus.cached;
     } catch (e) {
       this.logger.error("Error onDiscovered", {}, e as Error);
+
+     
       return DiscoveredPeerStatus.error;
     }
   }
 
   private shouldDialPeer(peer: CachedENR): boolean {
+
+
+
+    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+    const peerIdStr = peer.peerId.toString();
+  logP2PEvent('DIAL_CHECK_START', peerIdStr, {
+    attnetsCount: peer.subnets.attnets.filter(b => b).length,
+    syncnetsCount: peer.subnets.syncnets.filter(b => b).length,
+    ourPeersToConnect: this.peersToConnect
+  });
+    // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+
+
     const forkSeq = this.config.getForkSeq(this.clock.currentSlot);
     if (forkSeq >= ForkSeq.fulu && peer.custodyGroups !== null) {
       // pre-fulu `this.custodyGroupQueries` is empty
@@ -558,6 +647,20 @@ export class PeerDiscovery {
    * Peers that have been returned by discovery requests are dialed here if they are suitable.
    */
   private async dialPeer(cachedPeer: CachedENR): Promise<void> {
+
+  // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+   const startTime = Date.now();
+   const peerIdStr = cachedPeer.peerId.toString();
+  
+  logP2PEvent('DIAL_ATTEMPT_START', peerIdStr, {
+    peersToConnect: this.peersToConnect,
+    timestamp: startTime
+  });
+   // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+
+
     // we dial a peer when:
     // - this.peersToConnect > 0
     // - or the peer subscribes to a subnet that we want
@@ -575,7 +678,6 @@ export class PeerDiscovery {
       this.metrics?.discovery.notDialReason.inc({reason: NotDialReason.no_multiaddrs});
       return;
     }
-
     // Note: PeerDiscovery adds the multiaddrTCP beforehand
     const peerIdShort = prettyPrintPeerId(peerId);
     this.logger.debug("Dialing discovered peer", {peer: peerIdShort});
@@ -588,10 +690,33 @@ export class PeerDiscovery {
     try {
       await this.libp2p.dial(peerId);
       timer?.({status: "success"});
+
+
+    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+    logP2PEvent('DIAL_SUCCESS', peerIdStr, {
+    durationMs: Date.now() - startTime
+   });
+
+
+    // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+
       this.logger.debug("Dialed discovered peer", {peer: peerIdShort});
     } catch (e) {
       timer?.({status: "error"});
       formatLibp2pDialError(e as Error);
+
+
+
+      // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+      logP2PEvent('DIAL_FAILURE', peerIdStr, {
+    error: (e as Error).message,
+    durationMs: Date.now() - startTime
+    });
+
+    // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
       this.metrics?.discovery.dialError.inc({reason: getLibp2pError(e as Error)});
       this.logger.debug("Error dialing discovered peer", {peer: peerIdShort}, e as Error);
     }
