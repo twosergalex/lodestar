@@ -502,14 +502,29 @@ function getSequentialHandlers(modules: ValidatorFnsModules, options: GossipHand
 
     // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
-   logP2PEvent('BEACON_BLOCK_RECEIVED', peerIdStr, {
+     logP2PEvent('BEACON_BLOCK_RECEIVED', peerIdStr, {
      fork: topic.boundary.fork,
      seenAt: seenTimestampSec
-   });
+     });
     // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
            
       const {serializedData} = gossipData;
       const signedBlock = sszDeserialize(topic, serializedData);
+
+      // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+     const slot = signedBlock.message.slot;
+     const currentForkTypes = config.getForkTypes(slot); // 🔹 Исправленная строка
+
+    logP2PEvent('VALIDATOR_IDENTIFIED_PROPOSER', peerIdStr, {
+    proposerIndex: signedBlock.message.proposerIndex,
+    slot: slot,
+    blockRoot: toHex(currentForkTypes.BeaconBlock.hashTreeRoot(signedBlock.message)), // 🔹 Использование currentForkTypes
+    peer: peerIdStr,
+    fork: topic.boundary.fork,
+    seenAt: seenTimestampSec
+   });
+     // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
       const blockInput = await validateBeaconBlock(signedBlock, topic.boundary.fork, peerIdStr, seenTimestampSec);
       chain.serializedCache.set(signedBlock, serializedData);
       handleValidBeaconBlock(blockInput, peerIdStr, seenTimestampSec);
@@ -671,6 +686,16 @@ function getSequentialHandlers(modules: ValidatorFnsModules, options: GossipHand
       const signedAggregateAndProof = sszDeserialize(topic, serializedData);
       const {fork} = topic.boundary;
 
+      // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+      logP2PEvent('VALIDATOR_IDENTIFIED_AGGREGATOR', 'unknown', {
+    aggregatorIndex: signedAggregateAndProof.message.aggregatorIndex,
+    slot: signedAggregateAndProof.message.aggregate.data.slot,
+    attestationCount: signedAggregateAndProof.message.aggregate.aggregationBits.bitLen
+     });
+
+     // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
       try {
         validationResult = await validateGossipAggregateAndProof(fork, chain, signedAggregateAndProof, serializedData);
       } catch (e) {
@@ -778,6 +803,20 @@ function getSequentialHandlers(modules: ValidatorFnsModules, options: GossipHand
     }: GossipHandlerParamGeneric<GossipType.sync_committee_contribution_and_proof>) => {
       const {serializedData} = gossipData;
       const contributionAndProof = sszDeserialize(topic, serializedData);
+
+
+
+      // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+       logP2PEvent('VALIDATOR_IDENTIFIED_SYNC_AGGREGATOR', 'unknown', {
+        aggregatorIndex: contributionAndProof.message.aggregatorIndex, // 🔹 Валидатор в синк-комитете
+        slot: contributionAndProof.message.contribution.slot
+       });
+
+      // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+
+
       const {syncCommitteeParticipantIndices} = await validateSyncCommitteeGossipContributionAndProof(
         chain,
         contributionAndProof
@@ -880,7 +919,8 @@ function getBatchHandlers(modules: ValidatorFnsModules, options: GossipHandlerOp
     ): Promise<(null | AttestationError)[]> => {
 
 
-      // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+     // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
       // Логируем каждый аттестат в пакете
      for (const param of gossipHandlerParams) {
      logP2PEvent('BEACON_ATTESTATION_RECEIVED', param.peerIdStr, {
@@ -927,6 +967,21 @@ function getBatchHandlers(modules: ValidatorFnsModules, options: GossipHandlerOp
           validatorCommitteeIndex,
           committeeSize,
         } = validationResult.result;
+
+
+          // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+
+          logP2PEvent('VALIDATOR_IDENTIFIED_ATTESTER', gossipHandlerParams[i].peerIdStr, {
+                validators: indexedAttestation.attestingIndices, // 🔹 МАССИВ номеров валидаторов
+                slot: indexedAttestation.data.slot,
+                subnet: validationResult.result.subnet,
+                peer: gossipHandlerParams[i].peerIdStr
+            });
+
+           
+            // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
         chain.validatorMonitor?.registerGossipUnaggregatedAttestation(
           gossipHandlerParams[i].seenTimestampSec,
           indexedAttestation

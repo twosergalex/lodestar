@@ -1,0 +1,31 @@
+{
+  "basic_stats": {
+    "total_entries": 19893,
+    "unique_peers": 239,
+    "unique_event_types": 36,
+    "time_range": "2026-01-07T20:01:56.066Z - 2026-01-07T20:32:49.439Z",
+    "time_column": "event_timestamp"
+  },
+  "top_peers": {
+    "unknown": 4683,
+    "16Uiu2HAmSnMSUbNhcZUxCqyUs2mZGBP9XSCfTC3zn9PmDiYd7eJp": 619,
+    "16Uiu2HAmSoQnws9jzyvVxYxVDLDLkPJnaw4AhtiXxLVrWFdYNGM3": 512,
+    "16Uiu2HAm4psoT32oB87JAbYH9og16czxRHs2ZPN3n63m2x8xGcMs": 486,
+    "16Uiu2HAm1hQBFUNZLYiqD3kTcrxSpFusUciQ433ohNyfMwcmev23": 437,
+    "16Uiu2HAm485hpaXfMMUCCvpd4xqXXkvWPMmDU8NbicLUxbNDhFWr": 436,
+    "16Uiu2HAmGBX9i1k9CjS69e2EwJuWCVRKW8J3cmV4i6tqaPPB2gT5": 390,
+    "16Uiu2HAmSYQo1eEWDRuoC2vGeXdaU5cPz1MVGRAZMQTs5d9zcYUA": 371,
+    "16Uiu2HAmE3oRuSxh8t4YeNVeNZc1pFt2KfUjNbGXEfDpgFPxJ2Ei": 364,
+    "16Uiu2HAm9nL4jPyR6Cotu2C5WLhGch1tV4ht5qNFQ3kojjdXZ5Eu": 362
+  },
+  "client_distribution": {
+    "Lighthouse": 4191,
+    "Prysm": 907,
+    "Unknown": 749,
+    "Lodestar": 197,
+    "Nimbus": 96,
+    "Teku": 65
+  },
+  "event_types_count": 36,
+  "peer_disconnections": 99
+}

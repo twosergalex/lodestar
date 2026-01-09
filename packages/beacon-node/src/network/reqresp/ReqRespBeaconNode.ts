@@ -119,7 +119,7 @@ export class ReqRespBeaconNode extends ReqResp {
     await super.start();
 
 
-    // ====== НАЧАЛО ПЕРЕНЕСЕННОГО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+   // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
   
   // 1. Подключение пиров
   this.libp2p.addEventListener('peer:connect', (event) => {
@@ -139,7 +139,8 @@ export class ReqRespBeaconNode extends ReqResp {
   });
   
   
-  // ====== КОНЕЦ ПЕРЕНЕСЕННОГО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+  // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
 
   }
 
@@ -187,7 +188,7 @@ export class ReqRespBeaconNode extends ReqResp {
 
     
 
-      // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+// ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
   
         const methodName = ReqRespMethod[method as unknown as keyof typeof ReqRespMethod] || `UNKNOWN_${method}`;
 
@@ -204,6 +205,7 @@ logP2PEvent('RPC_OUT_REQUEST', peerId.toString(), {
   methodName: methodName,
   versions: versions,
   sizeBytes: requestData.length,
+  
   client: this.peersData.getPeerKind(peerId.toString()) || 'unknown',
   requestPreview: {
     dataSize: requestData.length,
@@ -213,7 +215,7 @@ logP2PEvent('RPC_OUT_REQUEST', peerId.toString(), {
       : 'empty'
   }
 });
-      // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+// ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
 
 
@@ -397,7 +399,7 @@ if (request.method === ReqRespMethod.Status && request.body) {
 
 logP2PEvent('RPC_IN_REQUEST', peerIdStr, logData);
  
-   // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+// ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
 
     const peerClient = this.peersData.getPeerKind(peer.toString()) ?? ClientKind.Unknown;
@@ -410,15 +412,15 @@ logP2PEvent('RPC_IN_REQUEST', peerIdStr, logData);
   protected onIncomingRequest(peerId: PeerId, protocol: ProtocolDescriptor): void {
 
 
-    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+  // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
     
     logP2PEvent('PROTOCOL_NEGOTIATED', peerId.toString(), {
     method: protocol.method,
     version: protocol.version,
-    encoding: protocol.encoding  // просто передаём значение
+    encoding: protocol.encoding
   });
   
-    // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+  // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
 
     // Remember preferred encoding
@@ -431,7 +433,7 @@ logP2PEvent('RPC_IN_REQUEST', peerIdStr, logData);
 
 
 
-     // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+// ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
       const methodKey = String(method) as keyof typeof ReqRespMethod;
       const methodName = ReqRespMethod[methodKey] ?? `UNKNOWN_${method}`;
@@ -445,7 +447,7 @@ logP2PEvent('RPC_ERROR', peerId.toString(), {
   client: this.peersData?.getPeerKind?.(peerId.toString()) ?? 'unknown'
 });
 
-     // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+// ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
 
     const peerAction = onOutgoingReqRespError(error, method);
@@ -465,7 +467,7 @@ logP2PEvent('RPC_ERROR', peerId.toString(), {
 
 
 
-    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+// ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
     
     logP2PEvent('RPC_OUT_RESPONSE', peerId.toString(), {
   method: ReqRespMethod.Status,
@@ -490,7 +492,7 @@ logP2PEvent('RPC_ERROR', peerId.toString(), {
   })
 });
 
-    // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+// ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
 
     yield {
@@ -506,7 +508,7 @@ logP2PEvent('RPC_ERROR', peerId.toString(), {
 
 
 
-    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+// ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
   
 logP2PEvent('RPC_OUT_RESPONSE', peerId.toString(), {
   method: ReqRespMethod.Goodbye,
@@ -518,7 +520,8 @@ logP2PEvent('RPC_OUT_RESPONSE', peerId.toString(), {
   timestamp: Date.now(),
   direction: 'outgoing'
 });
-  // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+// ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
 
     yield {
@@ -533,7 +536,7 @@ logP2PEvent('RPC_OUT_RESPONSE', peerId.toString(), {
     this.onIncomingRequestBody({method: ReqRespMethod.Ping, body}, peerId);
 
 
-    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+// ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
   logP2PEvent('RPC_OUT_RESPONSE', peerId.toString(), {
   method: ReqRespMethod.Ping,
@@ -546,7 +549,7 @@ logP2PEvent('RPC_OUT_RESPONSE', peerId.toString(), {
   direction: 'outgoing'
 });
 
-  // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+// ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
 
 
@@ -567,7 +570,7 @@ logP2PEvent('RPC_OUT_RESPONSE', peerId.toString(), {
 
 
 
-    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+// ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
   
  logP2PEvent('RPC_OUT_RESPONSE', peerId.toString(), {
   method: ReqRespMethod.Metadata,
@@ -581,7 +584,7 @@ logP2PEvent('RPC_OUT_RESPONSE', peerId.toString(), {
   timestamp: Date.now(),
   direction: 'outgoing'
 });
-  // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+// ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
     yield {
       data: type.serialize(metadata),

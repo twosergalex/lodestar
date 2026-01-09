@@ -330,10 +330,12 @@ export class PeerManager {
 
    // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
+    const peerData = this.connectedPeers.get(peer.toString());
     logP2PEvent('PEER_PING_RECEIVED', peer.toString(), {
     seqNumber: seqNumber.toString(),
     direction: 'inbound' as const, // Явно указываем тип
-    isResponseToOurPing: this.pendingPings.has(peer.toString())
+    isResponseToOurPing: this.pendingPings.has(peer.toString()),
+    client: peerData?.agentClient || 'unknown'
   });
 
     // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
@@ -362,9 +364,11 @@ export class PeerManager {
 
 
     // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+    
     logP2PEvent('PEER_METADATA', peer.toString(), {
         seqNumber: metadata.seqNumber.toString(),
-        attnetsCount: metadata.attnets?.getTrueBitIndexes().length || 0
+        attnetsCount: metadata.attnets?.getTrueBitIndexes().length || 0,
+        client: peerData?.agentClient || 'unknown'
     });
     // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
@@ -439,10 +443,13 @@ export class PeerManager {
 
 
      // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
+     const peerData = this.connectedPeers.get(peer.toString());
      logP2PEvent('PEER_GOODBYE_RECEIVED', peer.toString(), {
      reasonCode: goodbye.toString(),
      reasonText: reason,
-     direction: 'inbound'
+     direction: 'inbound',
+     client: peerData?.agentClient || 'unknown'
      });
      // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
@@ -576,11 +583,13 @@ export class PeerManager {
     const pingSentTime = Date.now();
     
     // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+
     this.pendingPings.set(peerIdStr, pingSentTime);
-    
+    const peerData = this.connectedPeers.get(peerIdStr);
     logP2PEvent('PEER_PING_SENT', peerIdStr, {
       direction: 'outbound',
-      timestamp: pingSentTime
+      timestamp: pingSentTime,
+      client: peerData?.agentClient || 'unknown'
     });
 
     try {
@@ -1049,13 +1058,17 @@ export class PeerManager {
     const peerIdStr = peer.toString();
 
 
-     // ▼▼▼ ДОБАВЬТЕ ЭТУ СТРОЧКУ ПРЯМО ЗДЕСЬ ▼▼▼
+     // ====== НАЧАЛО КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
+     
+     const peerData = this.connectedPeers.get(peerIdStr);
      logP2PEvent('PEER_GOODBYE_SENT', peerIdStr, {
      reasonCode: goodbye.toString(),
      reasonText: reason,
-     direction: 'outbound' // <-- Ключевое: это МЫ инициируем отключение
+     direction: 'outbound',
+     client: peerData?.agentClient || 'unknown'
+
     });
-     // ▲▲▲ КОНЕЦ ДОБАВЛЕНИЯ ▲▲▲
+     // ====== КОНЕЦ КОДА ДЛЯ ИССЛЕДОВАНИЯ ======
 
     try {
       this.metrics?.peerGoodbyeSent.inc({reason});
